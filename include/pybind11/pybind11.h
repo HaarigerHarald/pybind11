@@ -1521,20 +1521,25 @@ class class_ : public detail::generic_type {
     template <typename T>
     using is_base = detail::is_strict_base_of<T, type_>;
     template <typename T>
+    using is_nodelete = std::is_base_of<nodelete, T>;
+    template <typename T>
     using is_holder
         = detail::any_of<detail::is_holder_type<type_, T>,
                          detail::all_of<detail::negation<is_base<T>>,
                                         detail::negation<is_subtype<T>>,
+                                        detail::negation<is_nodelete<T>>,
                                         detail::type_uses_smart_holder_type_caster<type_>>>;
     // struct instead of using here to help MSVC:
     template <typename T>
-    struct is_valid_class_option : detail::any_of<is_holder<T>, is_subtype<T>, is_base<T>> {};
+    struct is_valid_class_option
+        : detail::any_of<is_holder<T>, is_subtype<T>, is_base<T>, is_nodelete<T>> {};
 
 public:
     using type = type_;
     using type_alias = detail::exactly_one_t<is_subtype, void, options...>;
     constexpr static bool has_alias = !std::is_void<type_alias>::value;
     using holder_type = detail::exactly_one_t<is_holder, default_holder_type<type>, options...>;
+    using nodelete_option = detail::exactly_one_t<is_nodelete, void, options...>;
 
     static_assert(detail::all_of<is_valid_class_option<options>...>::value,
                   "Unknown/invalid class_ template parameters provided");
@@ -1940,8 +1945,20 @@ private:
 
     template <typename T = type,
               typename A = type_alias,
-              detail::enable_if_t<detail::type_uses_smart_holder_type_caster<T>::value, int> = 0>
+              typename D = nodelete_option,
+              detail::enable_if_t<detail::type_uses_smart_holder_type_caster<T>::value, int> = 0,
+              detail::enable_if_t<!std::is_base_of<nodelete, D>::value, int>                 = 0>
     static void init_instance(detail::instance *inst, const void *holder_ptr) {
+        detail::type_caster<T>::template init_instance_for_type<T, A>(inst, holder_ptr);
+    }
+
+    template <typename T = type,
+              typename A = type_alias,
+              typename D = nodelete_option,
+              detail::enable_if_t<detail::type_uses_smart_holder_type_caster<T>::value, int> = 0,
+              detail::enable_if_t<std::is_base_of<nodelete, D>::value, int>                  = 0>
+    static void init_instance(detail::instance *inst, const void *holder_ptr) {
+        inst->owned = false;
         detail::type_caster<T>::template init_instance_for_type<T, A>(inst, holder_ptr);
     }
 
