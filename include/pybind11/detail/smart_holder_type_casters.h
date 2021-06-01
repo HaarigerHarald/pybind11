@@ -758,9 +758,22 @@ struct smart_holder_type_caster : smart_holder_type_caster_load<T>,
     using cast_op_type = conditional_t<
         std::is_same<remove_reference_t<T_>, T const *>::value,
         T const *,
-        conditional_t<std::is_same<remove_reference_t<T_>, T *>::value,
-                      T *,
-                      conditional_t<std::is_same<T_, T const &>::value, T const &, T &>>>;
+        conditional_t<
+            std::is_same<remove_reference_t<T_>, T *>::value,
+            T *,
+            conditional_t<
+                std::is_same<T_, T *const &>::value,
+                T *const &,
+                conditional_t<
+                    std::is_same<T_, T *&>::value,
+                    T *&,
+                    conditional_t<std::is_same<T_, T const *&>::value,
+                                  T const *&,
+                                  conditional_t<std::is_same<T_, T const *const &>::value,
+                                                T const *const &,
+                                                conditional_t<std::is_same<T_, T const &>::value,
+                                                              T const &,
+                                                              T &>>>>>>>;
 
     // The const operators here prove that the existing type_caster mechanism already supports
     // const-correctness. However, fully implementing const-correctness inside this type_caster
@@ -774,9 +787,21 @@ struct smart_holder_type_caster : smart_holder_type_caster_load<T>,
         return const_cast<smart_holder_type_caster *>(this)->loaded_as_raw_ptr_unowned();
     }
     // NOLINTNEXTLINE(google-explicit-constructor)
+    operator T const *&() const {
+        return const_cast<smart_holder_type_caster *>(this)->loaded_as_raw_ptr_unowned();
+    }
+    // NOLINTNEXTLINE(google-explicit-constructor)
+    operator T const * const &() const {
+        return const_cast<smart_holder_type_caster *>(this)->loaded_as_raw_ptr_unowned();
+    }
+    // NOLINTNEXTLINE(google-explicit-constructor)
     operator T &() { return this->loaded_as_lvalue_ref(); }
     // NOLINTNEXTLINE(google-explicit-constructor)
     operator T *() { return this->loaded_as_raw_ptr_unowned(); }
+    // NOLINTNEXTLINE(google-explicit-constructor)
+    operator T * const &() { return this->loaded_as_raw_ptr_unowned(); }
+    // NOLINTNEXTLINE(google-explicit-constructor)
+    operator T *&() { return this->loaded_as_raw_ptr_unowned(); }
 
     // Originally type_caster_generic::cast.
     PYBIND11_NOINLINE static handle cast_const_raw_ptr(const void *_src,
