@@ -376,6 +376,20 @@ struct smart_holder_type_caster_class_hooks : smart_holder_type_caster_base_tag 
             } else {
                 new (uninitialized_location)
                     holder_type(holder_type::from_raw_ptr_unowned(value_ptr_w_t));
+
+                auto *self_life_support
+                    = dynamic_raw_ptr_cast_if_possible<trampoline_self_life_support>(
+                        value_ptr_w_t);
+                if (self_life_support == nullptr && pointee_depends_on_holder_owner) {
+                    throw value_error(
+                        "Alias class (also known as trampoline) does not inherit from "
+                        "py::trampoline_self_life_support, therefore the ownership of this "
+                        "instance cannot safely be transferred to C++.");
+                }
+
+                if (self_life_support != nullptr) {
+                    self_life_support->activate_life_support(v_h);
+                }
             }
         }
         v_h.holder<holder_type>().pointee_depends_on_holder_owner
